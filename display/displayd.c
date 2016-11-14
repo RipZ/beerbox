@@ -13,6 +13,9 @@ void get_ref_temp(void);
 void set_ref_temp(void);
 
 float ref_temp;
+FILE *fp;
+char command[256];
+char temp[16];
 
 int main(int argc, char ** argv) {
 
@@ -27,16 +30,16 @@ int main(int argc, char ** argv) {
     sigaction(SIGUSR2, &sa, 0);
     sa.sa_handler = sigterm_handler;
     sigaction(SIGTERM, &sa, 0);
-    int counter = 0;
-    char command[256];
 
     pid_t pid = fork();
 
     if (pid == 0)
     {
-	printf("My child pid is %i\n", getpid());
-        sprintf(command, "echo %d > /var/run/megaripz.pid", getpid());
-        system (command);
+	fp = fopen ("/var/run/displayd.pid", "wb");
+	sprintf(temp,"%d", getpid());
+	fwrite(temp, 1, strlen(temp), fp);
+	fclose(fp);
+
 	get_ref_temp();
 	display_ref_temp();
 	sleep (5);
@@ -82,24 +85,24 @@ void usr2_handler(int i)
 
 void sigterm_handler(int i)
 {
-    system ("rm -f /var/run/megaripz.pid");
+    remove ("/var/run/displayd.pid");
     exit (0);
 }
 
 void display_ref_temp (void)
 {
-    char command[256];
-    char tmp[16];
-    sprintf(tmp, "%.1f", ref_temp);
-    sprintf(command, "/opt/beerbox/bin/OLED.py --parameter SETTINGS --value %s", tmp);
-    system(command);
+    sprintf(temp, "%.1f", ref_temp);
+    sprintf(command, "/opt/beerbox/bin/OLED.py --parameter SETTINGS --value %s", temp);
+    fp = popen(command, "r");
+    if (fp == NULL) {
+	printf("Failed to run command\n" );
+	exit(1);
+    }
+    pclose(fp);
 }
 
 void get_ref_temp(void)
 {
-    char command[256];
-    FILE *fp;
-    char temp[16];
     fp = popen("cat /opt/beerbox/etc/ref_temp", "r");
     if (fp == NULL) {
 	printf("Failed to run command\n" );
@@ -112,19 +115,16 @@ void get_ref_temp(void)
 
 void set_ref_temp(void)
 {
-    char command[256];
-    sprintf(command, "echo %.1f > /opt/beerbox/etc/ref_temp", ref_temp);
-    system(command);
+    sprintf(temp, "%.1f", ref_temp);
+    fp = fopen ("/opt/beerbox/etc/ref_temp", "wb");
+    fwrite(temp, 1, strlen(temp), fp);
+    fclose(fp);
 }
 
 void display_temp (int sensor, char *sensor_name)
 {
-    char command[256];
-    char sensor_path[256];
-    FILE *fp;
-    char temp[16];
-    sprintf(sensor_path, "cat /tmp/sensors/%d", sensor);
-    fp = popen(sensor_path, "r");
+    sprintf(command, "cat /tmp/sensors/%d", sensor);
+    fp = popen(command, "r");
     if (fp == NULL) {
 	printf("Failed to run command\n" );
 	exit(1);
@@ -132,14 +132,16 @@ void display_temp (int sensor, char *sensor_name)
     while (fgets(temp, sizeof(temp)-1, fp) != NULL);
     pclose(fp);
     sprintf(command, "/opt/beerbox/bin/OLED.py --parameter %s --value %s", sensor_name, temp);
-    system(command);
+    fp = popen(command, "r");
+    if (fp == NULL) {
+	printf("Failed to run command\n" );
+	exit(1);
+    }
+    pclose(fp);
 }
 
 void display_cpu_temp (void)
 {
-    char command[256];
-    FILE *fp;
-    char temp[16];
     fp = popen("cat /sys/class/thermal/thermal_zone1/temp", "r");
     if (fp == NULL) {
 	printf("Failed to run command\n" );
@@ -148,5 +150,10 @@ void display_cpu_temp (void)
     while (fgets(temp, sizeof(temp)-1, fp) != NULL);
     pclose(fp);
     sprintf(command, "/opt/beerbox/bin/OLED.py --parameter CPU_TEMP --value %s", temp);
-    system(command);
+    fp = popen(command, "r");
+    if (fp == NULL) {
+	printf("Failed to run command\n" );
+	exit(1);
+    }
+    pclose(fp);
 }

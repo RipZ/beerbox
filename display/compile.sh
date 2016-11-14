@@ -1,3 +1,3 @@
 #!/bin/bash
 
-gcc -o display display.c
+gcc -o displayd displayd.c
